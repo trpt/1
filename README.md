@@ -26,7 +26,7 @@ where `action` is:
 `wipe` - securely wipe block device with cryptsetup  
 
 # System encryption (advanced skillz needed)
-You can encrypt the whole system partition with this script in the stage of installing. To decrypt it at boot you should use `encryptk` hook to generate initial ramdisk (initramfs). In Arch you should put `encryptk` files in appropriate folders in `/etc/initcpio`, configure hook (check it source for comments) and add `encryptk` hook at the end of HOOKS array in `/etc/mkinitcpio.conf`. Finally, you should put something like `root=/dev/mapper/root` to your kernel parameters in `grub.cfg`.
+You can encrypt the whole system partition with this script in the stage of installing. To decrypt it at boot you should use `encryptk` hook to generate initial ramdisk (initramfs). In Arch you should put `encryptk` files in appropriate folders in `/etc/initcpio`, configure hook (check it source for comments) and add `encryptk` hook at the end of HOOKS array in `/etc/mkinitcpio.conf`. Then generate image with `mkinitcpio` command. Finally, you should put something like `root=/dev/mapper/root` to your kernel parameters in `grub.cfg`.
 
 # Notes
 Encrypted keyfiles are not supported by cryptsetup, and my implementation of it could be harmful to your data, could kill your cat, destroy your house and start 3rd World War.
