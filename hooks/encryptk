@@ -1,0 +1,46 @@
+#!/usr/bin/ash
+
+run_hook() {
+
+## Boot parameters
+# Name of the root mapper, usually 'root'
+boot_rootmapper='root'
+# Encrypted device
+boot_cryptdevice='/dev/sda1'
+# How to open encrypted keyfile
+boot_cryptcmd_open_keyfile='cryptsetup open --hash=sha512 --cipher=aes-xts-plain64 --type=plain'
+# How to open encrypted containers - first try is luks, then plain mode
+boot_cryptcmd_open='cryptsetup open'
+boot_cryptcmd_open_plain='cryptsetup open --hash=sha512 --cipher=aes-xts-plain64 --type=plain'
+
+# Set this if encrypted keyfile is outside initramfs
+boot_media='/dev/disk/by-label/boot'
+# Path to encrypted keyfile.
+# If option above is NOT set, add this path to FILES inside mkinitcpio.conf
+#boot_keyfile='/root/ckey'
+boot_keyfile='/grub/ckey'
+
+if [[ -n $boot_media ]]; then
+  if resolved=$(resolve_device "$boot_media" "$rootdelay"); then
+    mkdir /ckey
+    mount -r "$resolved" /ckey
+    $boot_cryptcmd_open_keyfile "/ckey/$boot_keyfile" boot_keyfile_tmp
+  fi
+else
+  sleep 1
+  $boot_cryptcmd_open_keyfile "$boot_keyfile" boot_keyfile_tmp
+fi
+
+if resolved=$(resolve_device "$boot_cryptdevice" "$rootdelay"); then
+  $boot_cryptcmd_open --key-file=- "$boot_cryptdevice" "$boot_rootmapper" < /dev/mapper/boot_keyfile_tmp || \
+  (echo "Trying plain mode" && \
+  $boot_cryptcmd_open_plain --key-file=- "$boot_cryptdevice" "$boot_rootmapper" < /dev/mapper/boot_keyfile_tmp)
+  cryptsetup close boot_keyfile_tmp
+fi
+
+if [[ -n $boot_media ]]; then
+  umount /ckey
+  rmdir /ckey
+fi
+
+}
