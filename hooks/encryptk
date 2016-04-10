@@ -6,29 +6,41 @@ run_hook() {
 # Name of the root mapper, usually 'root'
 boot_rootmapper='root'
 # Encrypted device
-boot_cryptdevice='/dev/sda1'
+boot_cryptdevice='/dev/sda'
 # How to open encrypted keyfile
 boot_cryptcmd_open_keyfile='cryptsetup open --hash=sha512 --cipher=aes-xts-plain64 --type=plain'
 # How to open encrypted containers - first try is luks, then plain mode
 boot_cryptcmd_open='cryptsetup open'
 boot_cryptcmd_open_plain='cryptsetup open --hash=sha512 --cipher=aes-xts-plain64 --type=plain'
+# Custom message, comment out to disable
+custom_message="ERROR: boot device not found"
 
 # Set this if encrypted keyfile is outside initramfs
 boot_media='/dev/disk/by-label/boot'
-# Path to encrypted keyfile.
+# Path to encrypted keyfile,
 # If option above is NOT set, add this path to FILES inside mkinitcpio.conf
 #boot_keyfile='/root/ckey'
-boot_keyfile='/grub/ckey'
+boot_keyfile='/rnd'
 
-if [[ -n $boot_media ]]; then
+open_keyfile() {
+if [ -n "$custom_message" ]; then
+  read -s -p "$custom_message" pass
+  echo -n "$pass" | $boot_cryptcmd_open_keyfile --key-file=- "${@}${boot_keyfile}" boot_keyfile_tmp
+  unset pass
+else
+  $boot_cryptcmd_open_keyfile "${@}${boot_keyfile}" boot_keyfile_tmp
+fi
+}
+
+if [ -n "$boot_media" ]; then
   if resolved=$(resolve_device "$boot_media" "$rootdelay"); then
     mkdir /ckey
     mount -r "$resolved" /ckey
-    $boot_cryptcmd_open_keyfile "/ckey/$boot_keyfile" boot_keyfile_tmp
+    open_keyfile '/ckey/'
   fi
 else
   sleep 1
-  $boot_cryptcmd_open_keyfile "$boot_keyfile" boot_keyfile_tmp
+  open_keyfile
 fi
 
 if resolved=$(resolve_device "$boot_cryptdevice" "$rootdelay"); then
@@ -38,7 +50,7 @@ if resolved=$(resolve_device "$boot_cryptdevice" "$rootdelay"); then
   cryptsetup close boot_keyfile_tmp
 fi
 
-if [[ -n $boot_media ]]; then
+if [ -n "$boot_media" ]; then
   umount /ckey
   rmdir /ckey
 fi
