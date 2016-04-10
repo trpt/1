@@ -11,19 +11,13 @@ You *should* change config options in source to match your needs. It is good ide
 `1 action`
 
 where `action` is:  
-`o` - open block device with passphrase  
-`ok` - open block device with encrypted keyfile  
-`of` - open file with passphrase  
-`ofk` - open file with encrypted keyfile  
-`n` - encrypt block device with passphrase  
-`nk` - encrypt block device with encrypted keyfile  
-`nf` - create file container encrypted with passphrase  
-`nfk` - create file container with encrypted keyfile  
-`gf` - generate new file of specifeid size with random data  
-`gkf` - generate new keyfile with /dev/random  
-`c` - unmount and close container  
-`1` - force unmount and close all containers  
-`wipe` - securely wipe block device with cryptsetup  
+`o` `open` - decrypt something and mount it in $mountpath  
+`n`, `new` - encrypt block device or create encrypted file container  
+`f`, `file` - generate new file of specifeid size with random data  
+`k`, `key` - generate new keyfile with /dev/random  
+`c`, `close` - unmount and close container  
+`1`, `panic` - force unmount and close all containers  
+`w`, `wipe` - securely wipe block device with cryptsetup  
 
 # System encryption (advanced skillz needed)
 You can encrypt the whole system partition with this script in the stage of installing. To decrypt it at boot you should use `encryptk` hook to generate initial ramdisk (initramfs). In Arch you should put `encryptk` files in appropriate folders in `/etc/initcpio`, configure hook (check it source for comments) and add `encryptk` hook at the end of HOOKS array in `/etc/mkinitcpio.conf`. Then generate image with `mkinitcpio` command. Finally, you should put something like `root=/dev/mapper/root` to your kernel parameters in `grub.cfg`.
@@ -35,5 +29,6 @@ Encrypted keyfiles are not supported by cryptsetup, and my implementation of it 
 `bash`  
 `cryptsetup`  
 optional `ddrescue`  
+filesystem that supports `fallocate` for creating containers  
 
 Used daily in Arch Linux and tested in many others.
