@@ -2,7 +2,7 @@
 cryptsetup wrapper in bash
 
 # Description
-This wrapper is mostly for those who uses `cryptsetup` with non-default parameters often in shell and do not want to type long commands. Also it has some advanced features like encrypted keyfiles, which is highly experimental and does not exist in `cryptsetup` in form as in e.g. Truecrypt. Also with the help of custom `encryptk` hook you can easly decrypt your system partition at boot with encrypted keyfile.
+This wrapper is mostly for those who use `cryptsetup` with non-default parameters often in shell and do not want to type long commands. Also it has some advanced features like encrypted keyfiles, which is highly experimental and does not exist in `cryptsetup` in form as in e.g. Truecrypt. Also with the help of custom `encryptk` hook you can easily decrypt your system partition at boot with encrypted keyfile.
 
 # Config
 You *should* change config options in source to match your needs. It is good idea to put script in PATH and into your rescue flash drive.
@@ -28,7 +28,6 @@ Encrypted keyfiles are not supported by cryptsetup, and my implementation of it 
 # Dependencies
 `bash`  
 `cryptsetup`  
-optional `ddrescue`  
-filesystem that supports `fallocate` for creating containers  
+optional `ddrescue` and `fallocate`  
 
 Used daily in Arch Linux and tested in many others.
