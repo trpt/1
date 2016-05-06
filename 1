@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # cryptsetup wrapper by Trepet
-# v. 1.88
+# v. 1.89
 # © GPLv3
 
 
@@ -19,6 +19,8 @@ listing_ignore='--ignore=root --ignore=control'
 dev_search='yes'
 # Use colors in messages
 colors='yes'
+# Remove empty mount points after closing container
+remove_mp='yes'
 
 ## Creating encrypted container options
 # Set to 'yes' to use cryptcmd_encrypt_plain encryption (see below)
@@ -73,41 +75,33 @@ die() {
 	exit 1
 }
 
-title() {
-  [[ $colors = 'yes' ]] && echo -e "\n\033[1;36m$@\033[0m\n" || echo -e "\n$@\n"
-}
+title() { [[ $colors = 'yes' ]] && echo -e "\n\033[1;36m$@\033[0m\n" || echo -e "\n$@\n" ;}
 
-warning() {
-  [[ $colors = 'yes' ]] && echo -e "\033[1;31m$@\033[0m" || echo -e "$@"
-}
+warning() { [[ $colors = 'yes' ]] && echo -e "\n\033[1;31m$@\033[0m" || echo -e "$@" ;}
 
-message() {
-  [[ $colors = 'yes' ]] && echo -e "\033[1;37m$@\033[0m" || echo -e "$@"
-}
+message() { [[ $colors = 'yes' ]] && echo -e "\033[1;37m$@\033[0m" || echo -e "$@" ;}
 
-rnd_gen() {
 # Generate random number from 1 to 511
 # https://stackoverflow.com/questions/2556190/random-number-from-a-range-in-a-bash-script
-od -N2 -An -i < /dev/urandom | awk -v f=1 -v r=511 '{printf "%i\n", f + r * $1 / 65536}'
-}
+rnd_gen() { od -N2 -An -i < /dev/urandom | awk -v f=1 -v r=511 '{printf "%i\n", f + r * $1 / 65536}' ;}
 
 checkmount () {
   mount "/dev/mapper/$mountp" "$mountpath$mountp" 2> /dev/null
   if [[ $? -eq 0 ]]; then
     tput reset
-    message "Mount success!"
-    else
+    message 'Mount success!'
+  else
     warning 'Mount failed'
-    rmdir "$mountpath$mountp" && cryptsetup close "/dev/mapper/$mountp" 2> /dev/null
+    [[ $remove_mp = 'yes' ]] && rmdir "$mountpath$mountp"
+    cryptsetup close "/dev/mapper/$mountp" 2> /dev/null
   fi
 }
 
 checkmountdir () {
-  echo -en "\n"
-  message "Mountpoint name"
+  message "\nMountpoint name"
   read -p "$mountpath" mountp
   echo -en "\n"
-  if [ "$(ls -A \"$mountpath$mountp\" 2> /dev/null)" ]; then
+  if find "$mountpath$mountp" -mindepth 1 2>/dev/null | read; then
     warning 'Mountpoint exists and not empty'
     checkmountdir
   else
@@ -124,6 +118,11 @@ checkmountdir () {
 checkcryptfile () {
   message "Cryptofile path"
   read cryptfile
+
+  if [[ -z "$cryptfile" ]]; then
+    warning "Empty path\n"
+    checkcryptfile
+  fi
 
   if [[ -e "$cryptfile" && $create -eq 1 ]]; then
     warning "File exist!"
@@ -154,8 +153,7 @@ checkcryptfile () {
 }
 
 checkkeyfile () {
-  echo -en "\n"
-  message "Keyfile path, leave blank to skip"
+  message "\nKeyfile path, leave blank to skip"
   read kf
   if [[ ! -z "$kf" ]]; then
     if [[ ! -f "$kf" ]]; then
@@ -170,8 +168,7 @@ checkkeyfile () {
 }
 
 checkmapper () {
-  echo -en "\n"
-  message "Choose mounted container"
+  message "\nChoose mounted container"
   read -p "/dev/mapper/" mountp
   if [[ ! -h "/dev/mapper/$mountp" ]]; then
     warning "Mapper doesn't exist"
@@ -200,7 +197,6 @@ wipedevice () {
     checkcryptfile
   fi
 
-  echo -en "\n"
   warning "$cryptfile will be wiped! Type 'yes' and hit [ENTER]"
   read ask
   [[ $ask != 'yes' ]] && die "Exiting"
@@ -215,10 +211,8 @@ newfile () {
   message 'Size of the new file? E.g. 1000K, 20M, 1.5G'
   read newfilesize
 
-  echo -en "\n"
-  message "Creating empty file..."
-  #dd if=/dev/zero of="$cryptfile" bs="$newfilesize" count=1 && \
-  fallocate -l "$newfilesize" "$cryptfile" && \
+  message "\nCreating empty file..."
+  (message "Trying fallocate..." && fallocate -l "$newfilesize" "$cryptfile" || (message "Trying dd..." && dd if=/dev/zero of="$cryptfile" bs="$newfilesize" count=1)) && \
   ([[ $add_rnd = 'yes' ]] && dd if=/dev/zero of="$cryptfile" oflag=append conv=notrunc bs="$(rnd_gen)" count=1 || true) && \
   message "Filling with random data..." && \
 
@@ -233,8 +227,7 @@ newkeyfile () {
   message 'Size of the new keyfile in bytes. 512-4096 is ok, /dev/random may be very slow!'
   read newkeyfilesize
 
-  echo -en "\n"
-  message "Creating keyfile..."
+  message "\nCreating keyfile..."
   head -c "$newkeyfilesize" /dev/random > "$cryptfile" && \
   message "Done. Your new keyfile is at $cryptfile"
 }
@@ -246,14 +239,12 @@ encrypt_block () {
   read skipwipe
 
   if [[ $skipwipe == "skip" ]]; then
-    echo -en "\n"
-    message "Skip wiping"
+    message "\nSkip wiping"
   else
     wipedevice
   fi
 
   mountp=new_sec_device
-  echo -en "\n"
   warning "It is very important to choose good passprhase!"
 
   if [[ $encrypt_plain = 'yes' ]]; then
@@ -287,7 +278,6 @@ encrypt_block () {
 encrypt_file () {
   ## Create encrypted file container
   mountp=new_sec_device
-  echo -en "\n"
   warning "It is very important to choose good passprhase!"
 
   if [[ $encrypt_plain = 'yes' ]]; then
@@ -326,13 +316,15 @@ umountcont () {
     checkmapper
   else
     mountp="$1"
-    force=1
+    force='yes'
   fi
 
-  if [[ -d "$mountpath$mountp" ]]; then
+  mounted=$(grep "^/dev/mapper/$mountp" /proc/mounts | awk '{print $2}')
+
+  if [[ -d "$mounted" ]]; then
     sync && \
-    [[ $force -eq 1 ]] && umount --force --lazy "$mountpath$mountp" || umount "$mountpath$mountp"
-    rmdir "$mountpath$mountp"
+    [[ $force = 'yes' ]] && umount --force --lazy "$mounted" || umount "$mounted"
+    [[ $remove_mp = 'yes' ]] && rmdir "$mounted"
     cryptsetup close $mountp && tput reset && message "Ok" || die "Something went wrong"
   else
     sync && cryptsetup close $mountp && tput reset && message "Ok" || die "Something went wrong"
@@ -455,6 +447,7 @@ case $1 in
   ;;
 
   w|wipe)
+    lsblk -o NAME,SIZE,MOUNTPOINT
     warning "Wipe device"
     checkcryptfile
     wipedevice
