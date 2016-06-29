@@ -1,26 +1,33 @@
 #!/bin/bash
 
 # cryptsetup wrapper by Trepet
-# v. 1.89
+# v. 1.92
 # © GPLv3
 
 
 ## General options
 # Path to mountpoints
 mountpath='/media/'
-# How to open encrypted containers - first try LUKS, then plain mode
-cryptcmd_open='cryptsetup open'
-cryptcmd_open_plain='cryptsetup open --hash=sha512 --cipher=aes-xts-plain64 --type=plain'
-# How to open encrypted keyfiles
-cryptcmd_open_keyfile='cryptsetup open --hash=sha512 --cipher=aes-xts-plain64 --type=plain'
 # Ignore these when listing containers to close
 listing_ignore='--ignore=root --ignore=control'
-# Search for devices in '/dev/'
+# Search for devices in '/dev/' for opening
 dev_search='yes'
 # Use colors in messages
 colors='yes'
 # Remove empty mount points after closing container
 remove_mp='yes'
+# Try all ciphers and hashes for plain mode, see arrays below for lists. Might be slow and buggy
+auto_try='mo'
+cipher_list=( 'aes-xts-plain64' 'twofish-xts-plain64' 'serpent-xts-plain64' )
+hash_list=( 'sha512' 'sha256' 'ripemd160' )
+cipher_list_keyf=( 'aes-xts-plain64' 'twofish-xts-plain64' 'serpent-xts-plain64' )
+hash_list_keyf=( 'sha512' 'sha256' 'ripemd160' )
+# If you do not want to use automount feature above, enter here how to open encrypted containers
+# First try is LUKS, then plain mode
+cryptcmd_open='cryptsetup open'
+cryptcmd_open_plain='cryptsetup open --type=plain --hash=sha512 --cipher=aes-xts-plain64'
+# How to open encrypted keyfiles, also used to create containers
+cryptcmd_open_keyfile='cryptsetup open  --type=plain --hash=sha512 --cipher=aes-xts-plain64'
 
 ## Creating encrypted container options
 # Set to 'yes' to use cryptcmd_encrypt_plain encryption (see below)
@@ -28,7 +35,7 @@ encrypt_plain='yes'
 # Filesystem to format (mkfs.* command): fat, ext4, btrfs etc.
 format_fs='ext4'
 # Encryption parameters in plain mode and luks
-cryptcmd_encrypt_plain='cryptsetup open --hash=sha512 --cipher=aes-xts-plain64 --type=plain'
+cryptcmd_encrypt_plain='cryptsetup open  --type=plain --hash=sha512 --cipher=aes-xts-plain64'
 cryptcmd_encrypt_luks='cryptsetup luksFormat --iter-time=5000 --hash=sha512 --cipher=aes-xts-plain64'
 # Use simple anti-forensic (I think :) function - adds random bytes in range of 1 to 511 to new file containers
 add_rnd='yes'
@@ -91,9 +98,10 @@ checkmount () {
     tput reset
     message 'Mount success!'
   else
-    warning 'Mount failed'
-    [[ $remove_mp = 'yes' ]] && rmdir "$mountpath$mountp"
+    [[ $cycle_mode != 'yes' ]] && warning 'Mount failed'
+    [[ $remove_mp = 'yes' && $cycle_mode != 'yes' ]] && rmdir "$mountpath$mountp"
     cryptsetup close "/dev/mapper/$mountp" 2> /dev/null
+    return 1
   fi
 }
 
@@ -110,7 +118,9 @@ checkmountdir () {
       warning "Mountpoint contains unsupported characters"
       checkmountdir
     else
-      [[ ! -d "$mountpath$mountp" ]] && mkdir "$mountpath$mountp"
+      if [[ ! -d "$mountpath$mountp" ]]; then
+        mkdir "$mountpath$mountp" || die "Could not make $mountpath$mountp, check config"
+      fi
     fi
   fi
 }
@@ -339,40 +349,73 @@ umountall () {
   done
 }
 
+cycle_crypt () {
+cycle_mode='yes'
+read -s -p 'Enter passphrase:' passphrase
+message "\nwait..."
+for ((i=0; i < "${#cipher_list[@]}"; i++)); do
+  for ((n=0; n < "${#hash_list[@]}"; n++)); do
+    echo -n "$passphrase" | cryptsetup open --type=plain --hash="${hash_list[$n]}" --cipher="${cipher_list[$i]}" "$cryptfile" "$mountp"
+    if [[ $((${#cipher_list[@]} - $i)) == 1 && $((${#hash_list[@]} - $n)) == 1 ]]; then
+      return 1
+    else
+      checkmount && unset passphrase && return 0
+    fi
+  done
+done
+}
+
+cycle_crypt_keyf () {
+cycle_mode='yes'
+read -s -p 'Enter passphrase:' passphrase
+message "\nwait..."
+for ((i=0; i < "${#cipher_list[@]}"; i++)); do
+  for ((n=0; n < "${#hash_list[@]}"; n++)); do
+    for ((k=0; k < "${#cipher_list_keyf[@]}"; k++)); do
+      for ((m=0; m < "${#hash_list_keyf[@]}"; m++)); do
+        echo -n "$passphrase" | cryptsetup open --type=plain --hash="${hash_list_keyf[$m]}" --cipher="${cipher_list_keyf[$k]}" "$kf" keyfile_tmp && \
+        (cryptsetup open --key-file=- "$cryptfile" "$mountp" < /dev/mapper/keyfile_tmp 2>/dev/null || \
+        cryptsetup open --type=plain --key-file=- --hash="${hash_list[$n]}" --cipher="${cipher_list[$i]}" "$cryptfile" "$mountp" < /dev/mapper/keyfile_tmp)
+        cryptsetup close keyfile_tmp
+        if [[ $((${#cipher_list[@]} - $i)) == 1 && $((${#hash_list[@]} - $n)) == 1 && $((${#cipher_list_keyf[@]} - $k)) == 1 && $((${#hash_list_keyf[@]} - $m)) == 1 ]]; then
+          return 1
+        else
+          checkmount && unset passphrase && return 0
+        fi
+      done
+    done
+  done
+done
+}
+
 open_cont () {
   ## Open encrypted container
   case $mode in
 
-    simpleblock)
-      title "Open block device $cryptfile"
+    simpleblock|simplefile)
+      title "Open $cryptfile"
       $cryptcmd_open "$cryptfile" "$mountp" || \
       (message "Trying plain mode" && \
-      $cryptcmd_open_plain "$cryptfile" "$mountp")
+      if [[ $auto_try = 'yes' ]]; then
+        cycle_crypt || (unset cycle_mode; unset passphrase && checkmount)
+      else
+        $cryptcmd_open_plain "$cryptfile" "$mountp" && \
+        checkmount
+      fi)
     ;;
 
-    simplefile)
-      title "Open file container $cryptfile"
-      $cryptcmd_open "$cryptfile" "$mountp" || \
-      (message "Trying plain mode" && \
-      $cryptcmd_open_plain "$cryptfile" "$mountp")
-    ;;
-
-    ekeyblock)
-      title "Open block device $cryptfile with encrypted keyfile"
-      $cryptcmd_open_keyfile "$kf" keyfile_tmp && \
-      ($cryptcmd_open --key-file=- "$cryptfile" "$mountp" < /dev/mapper/keyfile_tmp || \
-      (message "Trying plain mode" && \
-      $cryptcmd_open_plain --key-file=- "$cryptfile" "$mountp" < /dev/mapper/keyfile_tmp)
-      cryptsetup close keyfile_tmp)
-    ;;
-
-    ekeyfile)
-      title "Open file container $cryptfile with encrypted keyfile"
-      $cryptcmd_open_keyfile "$kf" keyfile_tmp && \
-      ($cryptcmd_open --key-file=- "$cryptfile" "$mountp" < /dev/mapper/keyfile_tmp || \
-      (message "Trying plain mode" && \
-      $cryptcmd_open_plain --key-file=- "$cryptfile" "$mountp" < /dev/mapper/keyfile_tmp)
-      cryptsetup close keyfile_tmp)
+    ekeyblock|ekeyfile)
+      title "Open $cryptfile with encrypted keyfile"
+      if [[ $auto_try = 'yes' ]]; then
+        cycle_crypt_keyf || (unset cycle_mode; unset passphrase && checkmount)
+      else
+        $cryptcmd_open_keyfile "$kf" keyfile_tmp && \
+        ($cryptcmd_open --key-file=- "$cryptfile" "$mountp" < /dev/mapper/keyfile_tmp || \
+        (message "Trying plain mode" && \
+        $cryptcmd_open_plain --key-file=- "$cryptfile" "$mountp" < /dev/mapper/keyfile_tmp)
+        cryptsetup close keyfile_tmp) && \
+        checkmount
+      fi
     ;;
   esac
 }
@@ -412,8 +455,7 @@ case $1 in
     checkcryptfile
     checkkeyfile
     checkmountdir
-    open_cont && \
-    checkmount
+    open_cont
   ;;
 
   n|new)
