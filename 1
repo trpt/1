@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # cryptsetup wrapper by Trepet
-# v. 1.92
+# v. 1.95
 # © GPLv3
 
 
@@ -16,8 +16,11 @@ dev_search='yes'
 colors='yes'
 # Remove empty mount points after closing container
 remove_mp='yes'
+# Repeat previous input in case of error
+error_repeat='yes'
 # Try all ciphers and hashes for plain mode, see arrays below for lists. Might be slow and buggy
 auto_try='yes'
+# Arrays for ciphers and hashes. Edit if you really know what you are doing
 cipher_list=( 'aes-xts-plain64' 'twofish-xts-plain64' 'serpent-xts-plain64' )
 hash_list=( 'sha512' 'sha256' 'ripemd160' )
 cipher_list_keyf=( 'aes-xts-plain64' 'twofish-xts-plain64' 'serpent-xts-plain64' )
@@ -79,7 +82,14 @@ EOF
 
 die() {
   [[ $colors = 'yes' ]] && echo -e "\n\033[1;31m$@\033[0m" >&2 || echo -e "\n$@" >&2
-	exit 1
+  if [[ $1 = 'Aborting...' ]]; then
+    cryptsetup close keyfile_tmp 2> /dev/null
+    cryptsetup close tobewiped 2> /dev/null
+    cryptsetup close "$mountp" 2> /dev/null
+    [[ $remove_mp = 'yes' && $(find "$mountpath$mountp" -maxdepth 0 -type d -empty 2>/dev/null) ]] \
+    && rmdir "$mountpath$mountp" 2> /dev/null
+  fi
+  exit 1
 }
 
 title() { [[ $colors = 'yes' ]] && echo -e "\n\033[1;36m$@\033[0m\n" || echo -e "\n$@\n" ;}
@@ -87,6 +97,9 @@ title() { [[ $colors = 'yes' ]] && echo -e "\n\033[1;36m$@\033[0m\n" || echo -e 
 warning() { [[ $colors = 'yes' ]] && echo -e "\n\033[1;31m$@\033[0m" || echo -e "$@" ;}
 
 message() { [[ $colors = 'yes' ]] && echo -e "\033[1;37m$@\033[0m" || echo -e "$@" ;}
+
+trap 'die Aborting...' SIGINT
+trap 'die Aborting...' SIGTERM
 
 # Generate random number from 1 to 511
 # https://stackoverflow.com/questions/2556190/random-number-from-a-range-in-a-bash-script
@@ -119,7 +132,7 @@ checkmountdir () {
       checkmountdir
     else
       if [[ ! -d "$mountpath$mountp" ]]; then
-        mkdir "$mountpath$mountp" || die "Could not make $mountpath$mountp, check config"
+        mkdir "$mountpath$mountp" || die "Could not make $mountpath$mountp"
       fi
     fi
   fi
@@ -127,7 +140,11 @@ checkmountdir () {
 
 checkcryptfile () {
   message "Cryptofile path"
-  read cryptfile
+  if [[ $error_repeat = 'yes' ]] && [[ -n $cryptfile ]]; then
+    read -e -i "$cryptfile" cryptfile
+  else
+    read cryptfile
+  fi
 
   if [[ -z "$cryptfile" ]]; then
     warning "Empty path\n"
@@ -164,7 +181,12 @@ checkcryptfile () {
 
 checkkeyfile () {
   message "\nKeyfile path, leave blank to skip"
-  read kf
+  if [[ $error_repeat = 'yes' ]] && [[ -n $kf ]]; then
+    read -e -i "$kf" kf
+  else
+    read kf
+  fi
+
   if [[ ! -z "$kf" ]]; then
     if [[ ! -f "$kf" ]]; then
       warning "Keyfile does not exist"
@@ -255,7 +277,7 @@ encrypt_block () {
   fi
 
   mountp=new_sec_device
-  warning "It is very important to choose good passprhase!"
+  warning "It is very important to choose good passphrase!"
 
   if [[ $encrypt_plain = 'yes' ]]; then
     cryptcmd_encrypt="$cryptcmd_encrypt_plain"
@@ -335,9 +357,9 @@ umountcont () {
     sync && \
     [[ $force = 'yes' ]] && umount --force --lazy "$mounted" || umount "$mounted"
     [[ $remove_mp = 'yes' ]] && rmdir "$mounted"
-    cryptsetup close $mountp && tput reset && message "Ok" || die "Something went wrong"
+    cryptsetup close "$mountp" && tput reset && message "Ok" || die "Something went wrong"
   else
-    sync && cryptsetup close $mountp && tput reset && message "Ok" || die "Something went wrong"
+    sync && cryptsetup close "$mountp" && tput reset && message "Ok" || die "Something went wrong"
   fi
 }
 
@@ -350,42 +372,42 @@ umountall () {
 }
 
 cycle_crypt () {
-cycle_mode='yes'
-read -s -p 'Enter passphrase:' passphrase
-message "\nwait..."
-for ((i=0; i < "${#cipher_list[@]}"; i++)); do
-  for ((n=0; n < "${#hash_list[@]}"; n++)); do
-    echo -n "$passphrase" | cryptsetup open --type=plain --hash="${hash_list[$n]}" --cipher="${cipher_list[$i]}" "$cryptfile" "$mountp"
-    if [[ $((${#cipher_list[@]} - $i)) == 1 && $((${#hash_list[@]} - $n)) == 1 ]]; then
-      return 1
-    else
-      checkmount && unset passphrase && return 0
-    fi
+  cycle_mode='yes'
+  read -s -p 'Enter passphrase:' passphrase
+  message "\nwait...CTRL-C to abort"
+  for ((i=0; i < "${#cipher_list[@]}"; i++)); do
+    for ((n=0; n < "${#hash_list[@]}"; n++)); do
+      echo -n "$passphrase" | cryptsetup open --type=plain --hash="${hash_list[$n]}" --cipher="${cipher_list[$i]}" "$cryptfile" "$mountp"
+      if [[ $((${#cipher_list[@]} - $i)) == 1 && $((${#hash_list[@]} - $n)) == 1 ]]; then
+        return 1
+      else
+        checkmount && unset passphrase && return 0
+      fi
+    done
   done
-done
 }
 
 cycle_crypt_keyf () {
-cycle_mode='yes'
-read -s -p 'Enter passphrase:' passphrase
-message "\nwait..."
-for ((i=0; i < "${#cipher_list[@]}"; i++)); do
-  for ((n=0; n < "${#hash_list[@]}"; n++)); do
-    for ((k=0; k < "${#cipher_list_keyf[@]}"; k++)); do
-      for ((m=0; m < "${#hash_list_keyf[@]}"; m++)); do
-        echo -n "$passphrase" | cryptsetup open --type=plain --hash="${hash_list_keyf[$m]}" --cipher="${cipher_list_keyf[$k]}" "$kf" keyfile_tmp && \
-        (cryptsetup open --key-file=- "$cryptfile" "$mountp" < /dev/mapper/keyfile_tmp 2>/dev/null || \
-        cryptsetup open --type=plain --key-file=- --hash="${hash_list[$n]}" --cipher="${cipher_list[$i]}" "$cryptfile" "$mountp" < /dev/mapper/keyfile_tmp)
-        cryptsetup close keyfile_tmp
-        if [[ $((${#cipher_list[@]} - $i)) == 1 && $((${#hash_list[@]} - $n)) == 1 && $((${#cipher_list_keyf[@]} - $k)) == 1 && $((${#hash_list_keyf[@]} - $m)) == 1 ]]; then
-          return 1
-        else
-          checkmount && unset passphrase && return 0
-        fi
+  cycle_mode='yes'
+  read -s -p 'Enter passphrase:' passphrase
+  message "\nwait...CTRL-C to abort"
+  for ((i=0; i < "${#cipher_list[@]}"; i++)); do
+    for ((n=0; n < "${#hash_list[@]}"; n++)); do
+      for ((k=0; k < "${#cipher_list_keyf[@]}"; k++)); do
+        for ((m=0; m < "${#hash_list_keyf[@]}"; m++)); do
+          echo -n "$passphrase" | cryptsetup open --type=plain --hash="${hash_list_keyf[$m]}" --cipher="${cipher_list_keyf[$k]}" "$kf" keyfile_tmp && \
+          (cryptsetup open --key-file=- "$cryptfile" "$mountp" < /dev/mapper/keyfile_tmp 2>/dev/null || \
+          cryptsetup open --type=plain --key-file=- --hash="${hash_list[$n]}" --cipher="${cipher_list[$i]}" "$cryptfile" "$mountp" < /dev/mapper/keyfile_tmp)
+          cryptsetup close keyfile_tmp
+          if [[ $((${#cipher_list[@]} - $i)) == 1 && $((${#hash_list[@]} - $n)) == 1 && $((${#cipher_list_keyf[@]} - $k)) == 1 && $((${#hash_list_keyf[@]} - $m)) == 1 ]]; then
+            return 1
+          else
+            checkmount && unset passphrase && return 0
+          fi
+        done
       done
     done
   done
-done
 }
 
 open_cont () {
@@ -450,6 +472,7 @@ new_cont () {
 
 case $1 in
   o|open)
+    [[ -d "$mountpath" ]] || die "Mountpoint path $mountpath does not exist, check config"
     lsblk -o NAME,SIZE,MOUNTPOINT
     title "Decrypt something"
     checkcryptfile
