@@ -374,9 +374,9 @@ umountcont () {
     sync && \
     [[ $force = 'yes' ]] && umount --force --lazy "$mounted" || umount "$mounted"
     [[ $remove_mp = 'yes' ]] && rmdir "$mounted"
-    cryptsetup close "$mountp" && tput reset && message "(translate ok)" || die "$(translate smth_wrong)"
+    cryptsetup close "$mountp" && tput reset && message "$(translate ok)" || die "$(translate smth_wrong)"
   else
-    sync && cryptsetup close "$mountp" && tput reset && message "(translate ok)" || die "$(translate smth_wrong)"
+    sync && cryptsetup close "$mountp" && tput reset && message "$(translate ok)" || die "$(translate smth_wrong)"
   fi
 }
 
