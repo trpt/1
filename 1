@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # cryptsetup wrapper by Trepet
-# v. 1.95
+# v. 2.0
 # © GPLv3
 
 
@@ -18,7 +18,7 @@ colors='yes'
 remove_mp='yes'
 # Repeat previous input in case of error
 error_repeat='yes'
-# Try all ciphers and hashes for plain mode, see arrays below for lists. Might be slow and buggy
+# Try all ciphers and hashes for plain mode, see arrays below for lists. Might be slow
 auto_try='yes'
 # Arrays for ciphers and hashes. Edit if you really know what you are doing
 cipher_list=( 'aes-xts-plain64' 'twofish-xts-plain64' 'serpent-xts-plain64' )
@@ -44,8 +44,46 @@ cryptcmd_encrypt_luks='cryptsetup luksFormat --iter-time=5000 --hash=sha512 --ci
 add_rnd='yes'
 
 ######################################
+translate() {
+  [[ -z $lang ]] && lang=${LANG:0:2}
+
+  declare -A tr_en=([root_req]='Not running as root' [aborting]='Aborting...' [mount_success]='Mount success!' [mount_failed]='Mount failed' [mount_name]='Mountpoint name' [mount_exists]='Mountpoint exists and not empty' [mount_un_ch]='Mountpoint contains unsupported characters' [make_fail]='Could not make' [cf_path]='Cryptofile path' [empty_path]='Empty path' [file_exists]='File exists!' [is_used]='is used' [not_exist]='does not exist' [block_mounted]='is a block device and is mounted' [kf_path]='Keyfile path, leave blank to skip' [kf_not_exist]='Keyfile does not exist' [choose_mounted]='Choose mounted container' [mapper_not_exist]='Mapper does not exist' [ddrescue_found]='ddrescue found, using it' [wiping]='Wiping, this can take a while' [done]='Done' [wipe_fail]='Error wiping' [not_block]='is not a block device' [wipe_warn]='will be wiped! Type "yes" and hit [ENTER]' [exiting]='Exiting' [newf_size]='Size of the new file? E.g. 1000K, 20M, 1.5G' [create_emptyf]='Creating empty file...' [try_fallocate]='Trying fallocate...' [try_dd]='Trying dd...' [rnd_fill]='Filling with random data...' [emptyf_fail]='Error creating empty file' [newkf_msg]='Size of the new keyfile in bytes. 512-4096 is ok, /dev/random may be very slow!' [newkf_create]='Creating keyfile...' [newkf_done]='Done. Your new keyfile is at' [encrypt_block1]='First, you have to fill your block device with random data' [encrypt_block2]='Hit [ENTER] to proceed, type "skip" and hit [ENTER] to skip this step, CTRL-C to exit' [skip_wiping]='Skip wiping' [pass_warn]='It is very important to choose good passphrase!' [encrypt_options]='Encrypt options:' [filesystem]='Filesystem:' [formatting]='Formatring...' [done_enc]='Done encrypting' [smth_wrong]='Something went wrong' [ok]='Ok' [enter_pass]='Enter passphrase:' [wait_abort]='wait...CTRL-C to abort' [open]='Open' [try_plain]='Trying plain mode' [with_enc_kf]='with encrypted keyfile' [simpleblock_txt]='Encrypt block device' [simplefile_txt]='Encrypt file container' [mnt_path1]='Mountpoint path' [mnt_path2]='does not exist, check config' [dec_smth]='Decrypt something' [enc_smth]='Encrypt something' [gen_newf_txt]='Generating new file with random data' [gen_newkf_txt]='Generating new keyfile with /dev/random' [umount_close]='Unmount and close container' [wipe_device]='Wipe device')
+
+  declare -A tr_ru=([root_req]='Запущено не от root' [aborting]='Отмена...' [mount_success]='Успешно смонтировано!' [mount_failed]='Монтирование не удалось' [mount_name]='Название точки монтирования' [mount_exists]='Точка монтирования существует и не пуста' [mount_un_ch]='Название точки монтирования сожержит неподдерживаемые символы' [make_fail]='Не удалось создать' [cf_path]='Путь к криптофайлу' [empty_path]='Пустой путь' [file_exists]='Файл существует!' [is_used]='используется' [not_exist]='не существует' [block_mounted]='- блочное устройство и оно смонтировано' [kf_path]='Пусть к ключевому файлу. Оставьте пустым, чтобы пропустить этот шаг' [kf_not_exist]='Ключевой файл не существует' [choose_mounted]='Выберите примонтированный контейнер' [mapper_not_exist]='Указателя не существует' [ddrescue_found]='Программа ddrescue обнаружена, используем ее' [wiping]='Затираем, это может быть долгим процессом' [done]='Успешно' [wipe_fail]='Ошибка при затирании' [not_block]='- не блочное устройство' [wipe_warn]='будет затерто! Напечатайте "yes" и нажмите [ENTER]' [exiting]='Выходим' [newf_size]='Размер нового файла? Напр. 1000K, 20M, 1.5G' [create_emptyf]='Создаем пустой файл...' [try_fallocate]='Пробуем fallocate...' [try_dd]='Пробуем dd...' [rnd_fill]='Заполняем случайными данными...' [emptyf_fail]='Ошибка при создании пустого файла' [newkf_msg]='Размер нового ключевого файла в байтах. 512-4096 достаточно, /dev/random может быть очень медленным!' [newkf_create]='Создаем ключевой файл...' [newkf_done]='Успешно. Новый ключевой файл находится здесь' [encrypt_block1]='Для начала нужно заполнить блочное устройство случайными данными' [encrypt_block2]='Нажмите [ENTER] для продолжения, напечатайте "skip" и нажмите [ENTER] для пропуска этого шага, CTRL-C для выхода' [skip_wiping]='Пропуск затирания' [pass_warn]='Очень важно выбрать хорошую парольную фразу!' [encrypt_options]='Параметры шифрования:' [filesystem]='Файловая система:' [formatting]='Форматируем...' [done_enc]='Зашифровано успешно' [smth_wrong]='Что-то пошло не так' [ok]='Ok' [enter_pass]='Введите пароль:' [wait_abort]='ждите...CTRL-C для отмены' [open]='Открыть' [try_plain]='Пробуем plain mode' [with_enc_kf]='с помощью зашифрованного ключевого файла' [simpleblock_txt]='Зашифровать блочное устройство' [simplefile_txt]='Зашифровать файловый контейнер' [mnt_path1]='Путь для точек монтирования' [mnt_path2]='не существует, проверьте конфиг' [dec_smth]='Расшировать что-нибудь' [enc_smth]='Зашифровать что-нибудь' [gen_newf_txt]='Заполнить новый файл случайными данными' [gen_newkf_txt]='Генерировать новый ключевой файл с помощью /dev/random' [umount_close]='Размонтировать и закрыть контейнер' [wipe_device]='Затереть устройство')
+
+  case $lang in
+  ru)
+    [[ -z ${tr_ru[$1]} ]] && echo "${tr_en[$1]}" || echo "${tr_ru[$1]}"
+  ;;
+  *)
+    echo "${tr_en[$1]}"
+  ;;
+  esac
+}
+
+die() {
+  [[ $colors = 'yes' ]] && echo -e "\n\033[1;31m$@\033[0m" >&2 || echo -e "\n$@" >&2
+  if [[ $1 = "$(translate aborting)" ]]; then
+    cryptsetup close keyfile_tmp 2> /dev/null
+    cryptsetup close tobewiped 2> /dev/null
+    cryptsetup close "$mountp" 2> /dev/null
+    [[ $remove_mp = 'yes' && $(find "$mountpath$mountp" -maxdepth 0 -type d -empty 2>/dev/null) ]] \
+    && rmdir "$mountpath$mountp" 2> /dev/null
+  fi
+  exit 1
+}
+
+title() { [[ $colors = 'yes' ]] && echo -e "\n\033[1;36m$@\033[0m\n" || echo -e "\n$@\n" ;}
+
+warning() { [[ $colors = 'yes' ]] && echo -e "\n\033[1;31m$@\033[0m" || echo -e "$@" ;}
+
+message() { [[ $colors = 'yes' ]] && echo -e "\033[1;37m$@\033[0m" || echo -e "$@" ;}
+
+trap "die $(translate aborting)" SIGINT
+trap "die $(translate aborting)" SIGTERM
+
 if [[ $(/usr/bin/id -u) -ne 0 ]]; then
-  echo "Not running as root"
+  die "$(translate root_req)"
   exit
 fi
 
@@ -80,27 +118,6 @@ usage: ${0##*/} [action]
 EOF
 }
 
-die() {
-  [[ $colors = 'yes' ]] && echo -e "\n\033[1;31m$@\033[0m" >&2 || echo -e "\n$@" >&2
-  if [[ $1 = 'Aborting...' ]]; then
-    cryptsetup close keyfile_tmp 2> /dev/null
-    cryptsetup close tobewiped 2> /dev/null
-    cryptsetup close "$mountp" 2> /dev/null
-    [[ $remove_mp = 'yes' && $(find "$mountpath$mountp" -maxdepth 0 -type d -empty 2>/dev/null) ]] \
-    && rmdir "$mountpath$mountp" 2> /dev/null
-  fi
-  exit 1
-}
-
-title() { [[ $colors = 'yes' ]] && echo -e "\n\033[1;36m$@\033[0m\n" || echo -e "\n$@\n" ;}
-
-warning() { [[ $colors = 'yes' ]] && echo -e "\n\033[1;31m$@\033[0m" || echo -e "$@" ;}
-
-message() { [[ $colors = 'yes' ]] && echo -e "\033[1;37m$@\033[0m" || echo -e "$@" ;}
-
-trap 'die Aborting...' SIGINT
-trap 'die Aborting...' SIGTERM
-
 # Generate random number from 1 to 511
 # https://stackoverflow.com/questions/2556190/random-number-from-a-range-in-a-bash-script
 rnd_gen() { od -N2 -An -i < /dev/urandom | awk -v f=1 -v r=511 '{printf "%i\n", f + r * $1 / 65536}' ;}
@@ -109,9 +126,9 @@ checkmount () {
   mount "/dev/mapper/$mountp" "$mountpath$mountp" 2> /dev/null
   if [[ $? -eq 0 ]]; then
     tput reset
-    message 'Mount success!'
+    message "$(translate mount_success)"
   else
-    [[ $cycle_mode != 'yes' ]] && warning 'Mount failed'
+    [[ $cycle_mode != 'yes' ]] && warning "$(translate mount_failed)"
     [[ $remove_mp = 'yes' && $cycle_mode != 'yes' ]] && rmdir "$mountpath$mountp"
     cryptsetup close "/dev/mapper/$mountp" 2> /dev/null
     return 1
@@ -119,27 +136,27 @@ checkmount () {
 }
 
 checkmountdir () {
-  message "\nMountpoint name"
+  message "\n$(translate mount_name)"
   read -p "$mountpath" mountp
   echo -en "\n"
   if find "$mountpath$mountp" -mindepth 1 2>/dev/null | read; then
-    warning 'Mountpoint exists and not empty'
+    warning "$(translate mount_exists)"
     checkmountdir
   else
     pattern=" |'"
     if [[ "$mountp" =~ $pattern ]]; then
-      warning "Mountpoint contains unsupported characters"
+      warning "$(translate mount_un_ch)"
       checkmountdir
     else
       if [[ ! -d "$mountpath$mountp" ]]; then
-        mkdir "$mountpath$mountp" || die "Could not make $mountpath$mountp"
+        mkdir "$mountpath$mountp" || die "$(translate make_fail) $mountpath$mountp"
       fi
     fi
   fi
 }
 
 checkcryptfile () {
-  message "Cryptofile path"
+  message "$(translate cf_path)"
   if [[ $error_repeat = 'yes' ]] && [[ -n $cryptfile ]]; then
     read -e -i "$cryptfile" cryptfile
   else
@@ -147,12 +164,12 @@ checkcryptfile () {
   fi
 
   if [[ -z "$cryptfile" ]]; then
-    warning "Empty path\n"
+    warning "$(translate empty_path)\n"
     checkcryptfile
   fi
 
   if [[ -e "$cryptfile" && $create -eq 1 ]]; then
-    warning "File exist!"
+    warning "$(translate file_exists)"
     checkcryptfile
     return
   fi
@@ -162,16 +179,16 @@ checkcryptfile () {
   else
     if [[ $dev_search = 'yes' ]] && [[ -b "/dev/$cryptfile" ]]; then
       cryptfile="/dev/$cryptfile"
-      message "$cryptfile is used"
+      message "$cryptfile $(translate is_used)"
     fi
 
     if [[ ! -b "$cryptfile" ]]; then
-      warning "$cryptfile does not exist"
+      warning "$cryptfile $(translate not_exist)"
       checkcryptfile
     fi
 
     if [[ $(grep "$cryptfile" < /proc/mounts) ]]; then
-      warning "$cryptfile is a block device and is mounted"
+      warning "$cryptfile $(translate block_mounted)"
       checkcryptfile
     fi
 
@@ -180,7 +197,7 @@ checkcryptfile () {
 }
 
 checkkeyfile () {
-  message "\nKeyfile path, leave blank to skip"
+  message "\n$(translate kf_path)"
   if [[ $error_repeat = 'yes' ]] && [[ -n $kf ]]; then
     read -e -i "$kf" kf
   else
@@ -189,7 +206,7 @@ checkkeyfile () {
 
   if [[ ! -z "$kf" ]]; then
     if [[ ! -f "$kf" ]]; then
-      warning "Keyfile does not exist"
+      warning "$(translate kf_not_exist)"
       checkkeyfile
     else
       mode="ekey$mode"
@@ -200,10 +217,10 @@ checkkeyfile () {
 }
 
 checkmapper () {
-  message "\nChoose mounted container"
+  message "\n$(translate choose_mounted)"
   read -p "/dev/mapper/" mountp
   if [[ ! -h "/dev/mapper/$mountp" ]]; then
-    warning "Mapper doesn't exist"
+    warning "$(translate mapper_not_exist)"
     checkmapper
   fi
 }
@@ -213,75 +230,75 @@ wipecs () {
   ## Check 2.19 at https://gitlab.com/cryptsetup/cryptsetup/wikis/FrequentlyAskedQuestions
   cryptsetup open --type plain -d /dev/urandom "$1" tobewiped && \
   if [[ $(command -v ddrescue) ]]; then
-    message "ddrescue found, using it"
+    message "$(translate ddrescue_found)"
     ddrescue -f /dev/zero /dev/mapper/tobewiped 2>/dev/null
   else
-    message 'Wiping, this can take a while'
+    message "$(translate wiping)"
     cat /dev/zero > /dev/mapper/tobewiped 2>/dev/null
   fi
-  sync && cryptsetup close tobewiped && message "Done" || die "Error wiping $1"
+  sync && cryptsetup close tobewiped && message "$(translate done)" || die "$(translate wipe_fail) $1"
 }
 
 wipedevice () {
   ## Wipe block device
   if [[ ! -b "$cryptfile" ]]; then
-    warning "$cryptfile is not a block device"
+    warning "$cryptfile $(translate not_block)"
     checkcryptfile
   fi
 
-  warning "$cryptfile will be wiped! Type 'yes' and hit [ENTER]"
+  warning "$cryptfile $(translate wipe_warn)"
   read ask
-  [[ $ask != 'yes' ]] && die "Exiting"
+  [[ $ask != 'yes' ]] && die "$(translate exiting)"
 
   wipecs "$cryptfile"
 }
 
 newfile () {
   ## Create new file container
-  [[ -e "$cryptfile" ]] && die "File exist!"
+  [[ -e "$cryptfile" ]] && die "$(translate file_exists)"
 
-  message 'Size of the new file? E.g. 1000K, 20M, 1.5G'
+  message "$(translate newf_size)"
   read newfilesize
 
-  message "\nCreating empty file..."
-  (message "Trying fallocate..." && fallocate -l "$newfilesize" "$cryptfile" || (message "Trying dd..." && dd if=/dev/zero of="$cryptfile" bs="$newfilesize" count=1)) && \
+  message "\n$(translate create_emptyf)"
+  (message "$(translate try_fallocate)" && fallocate -l "$newfilesize" "$cryptfile" || (message "$(translate try_dd)" && dd if=/dev/zero of="$cryptfile" bs="$newfilesize" count=1)) && \
   ([[ $add_rnd = 'yes' ]] && dd if=/dev/zero of="$cryptfile" oflag=append conv=notrunc bs="$(rnd_gen)" count=1 || true) && \
-  message "Filling with random data..." && \
+  message "$(translate rnd_fill)" && \
 
   wipecs "$cryptfile" || \
-  die "Error creating empty file"
+  die "$(translate emptyf_fail)"
 }
 
 newkeyfile () {
   ## Create new keyfile
-  [[ -e "$cryptfile" ]] && die "File exist!"
+  [[ -e "$cryptfile" ]] && die "$(translate file_exists)"
 
-  message 'Size of the new keyfile in bytes. 512-4096 is ok, /dev/random may be very slow!'
+  message "$(translate newkf_msg)"
   read newkeyfilesize
 
-  message "\nCreating keyfile..."
+  message "\n$(translate newkf_create)"
   head -c "$newkeyfilesize" /dev/random > "$cryptfile" && \
-  message "Done. Your new keyfile is at $cryptfile"
+  message "$(translate newkf_done) $cryptfile"
 }
 
 encrypt_block () {
   ## Encrypt existing block device
-  message "First, you have to fill your block device with random data"
-  message 'Hit [ENTER] to proceed, type "skip" to skip this step, CTRL-C to exit'
+  message "$(translate encrypt_block1)"
+  message "$(translate encrypt_block2)"
   read skipwipe
 
   if [[ $skipwipe == "skip" ]]; then
-    message "\nSkip wiping"
+    message "\n$(translate skip_wiping)"
   else
     wipedevice
   fi
 
   mountp=new_sec_device
-  warning "It is very important to choose good passphrase!"
+  warning "$(translate pass_warn)"
 
   if [[ $encrypt_plain = 'yes' ]]; then
     cryptcmd_encrypt="$cryptcmd_encrypt_plain"
-    message "Encrypt options: \"$cryptcmd_encrypt\""
+    message "$(translate encrypt_options) \"$cryptcmd_encrypt\""
     if [[ -n $kf ]]; then
       $cryptcmd_open_keyfile --verify-passphrase "$kf" keyfile_tmp && \
       $cryptcmd_encrypt --key-file=- "$cryptfile" "$mountp" < /dev/mapper/keyfile_tmp
@@ -291,7 +308,7 @@ encrypt_block () {
     fi
   else
     cryptcmd_encrypt="$cryptcmd_encrypt_luks"
-    message "Encrypt options: \"$cryptcmd_encrypt\""
+    message "$(translate encrypt_options) \"$cryptcmd_encrypt\""
     if [[ -n $kf ]]; then
       $cryptcmd_open_keyfile --verify-passphrase "$kf" keyfile_tmp && \
       $cryptcmd_encrypt --key-file=- "$cryptfile" < /dev/mapper/keyfile_tmp && \
@@ -302,19 +319,19 @@ encrypt_block () {
       cryptsetup open "$cryptfile" "$mountp"
     fi
   fi && \
-  message "Filesystem: $format_fs. Formatting..." && \
+  message "$(translate filesystem) ${format_fs}. $(translate formatting)" && \
   mkfs."${format_fs}" "/dev/mapper/$mountp" && sync && cryptsetup close "$mountp" 2>/dev/null && \
-  message "Done encrypting $cryptfile" || (umount "/dev/mapper/$mountp" 2>/dev/null & cryptsetup close "$mountp" 2>/dev/null & die "Something went wrong")
+  message "$(translate done_enc) $cryptfile" || (umount "/dev/mapper/$mountp" 2>/dev/null & cryptsetup close "$mountp" 2>/dev/null & die "$(translate smth_wrong)")
 }
 
 encrypt_file () {
   ## Create encrypted file container
   mountp=new_sec_device
-  warning "It is very important to choose good passprhase!"
+  warning "$(translate pass_warn)"
 
   if [[ $encrypt_plain = 'yes' ]]; then
     cryptcmd_encrypt="$cryptcmd_encrypt_plain"
-    message "Encrypt options: \"$cryptcmd_encrypt\""
+    message "$(translate encrypt_options) \"$cryptcmd_encrypt\""
     if [[ -n $kf ]]; then
       $cryptcmd_open_keyfile --verify-passphrase "$kf" keyfile_tmp && \
       $cryptcmd_encrypt --key-file=- "$cryptfile" "$mountp" < /dev/mapper/keyfile_tmp
@@ -324,7 +341,7 @@ encrypt_file () {
     fi
   else
     cryptcmd_encrypt="$cryptcmd_encrypt_luks"
-    message "Encrypt options: \"$cryptcmd_encrypt\""
+    message "$(translate encrypt_options) \"$cryptcmd_encrypt\""
     if [[ -n $kf ]]; then
       $cryptcmd_open_keyfile --verify-passphrase "$kf" keyfile_tmp && \
       $cryptcmd_encrypt --key-file=- "$cryptfile" < /dev/mapper/keyfile_tmp && \
@@ -335,9 +352,9 @@ encrypt_file () {
       cryptsetup open "$cryptfile" "$mountp"
     fi
   fi && \
-  message "Filesystem: $format_fs. Formatting..." && \
+  message "$(translate filesystem) ${format_fs}. $(translate formatting)" && \
   mkfs."${format_fs}" "/dev/mapper/$mountp" && sync && cryptsetup close "$mountp" 2>/dev/null && \
-  message "Done encrypting $cryptfile" || (umount "$mountp" 2>/dev/null & cryptsetup close "$mountp" 2>/dev/null & die "Something went wrong")
+  message "$(translate done_enc) $cryptfile" || (umount "$mountp" 2>/dev/null & cryptsetup close "$mountp" 2>/dev/null & die "$(translate smth_wrong)")
 }
 
 
@@ -357,9 +374,9 @@ umountcont () {
     sync && \
     [[ $force = 'yes' ]] && umount --force --lazy "$mounted" || umount "$mounted"
     [[ $remove_mp = 'yes' ]] && rmdir "$mounted"
-    cryptsetup close "$mountp" && tput reset && message "Ok" || die "Something went wrong"
+    cryptsetup close "$mountp" && tput reset && message "(translate ok)" || die "$(translate smth_wrong)"
   else
-    sync && cryptsetup close "$mountp" && tput reset && message "Ok" || die "Something went wrong"
+    sync && cryptsetup close "$mountp" && tput reset && message "(translate ok)" || die "$(translate smth_wrong)"
   fi
 }
 
@@ -373,8 +390,8 @@ umountall () {
 
 cycle_crypt () {
   cycle_mode='yes'
-  read -s -p 'Enter passphrase:' passphrase
-  message "\nwait...CTRL-C to abort"
+  read -s -p "$(translate enter_pass)" passphrase
+  message "\n$(translate wait_abort)"
   for ((i=0; i < "${#cipher_list[@]}"; i++)); do
     for ((n=0; n < "${#hash_list[@]}"; n++)); do
       echo -n "$passphrase" | cryptsetup open --type=plain --hash="${hash_list[$n]}" --cipher="${cipher_list[$i]}" "$cryptfile" "$mountp"
@@ -389,8 +406,8 @@ cycle_crypt () {
 
 cycle_crypt_keyf () {
   cycle_mode='yes'
-  read -s -p 'Enter passphrase:' passphrase
-  message "\nwait...CTRL-C to abort"
+  read -s -p "$(translate enter_pass)" passphrase
+  message "\n$(translate wait_abort)"
   for ((i=0; i < "${#cipher_list[@]}"; i++)); do
     for ((n=0; n < "${#hash_list[@]}"; n++)); do
       for ((k=0; k < "${#cipher_list_keyf[@]}"; k++)); do
@@ -415,9 +432,9 @@ open_cont () {
   case $mode in
 
     simpleblock|simplefile)
-      title "Open $cryptfile"
+      title "$(translate open) $cryptfile"
       $cryptcmd_open "$cryptfile" "$mountp" || \
-      (message "Trying plain mode" && \
+      (message "$(translate try_plain)" && \
       if [[ $auto_try = 'yes' ]]; then
         cycle_crypt || (unset cycle_mode; unset passphrase && checkmount)
       else
@@ -427,13 +444,13 @@ open_cont () {
     ;;
 
     ekeyblock|ekeyfile)
-      title "Open $cryptfile with encrypted keyfile"
+      title "$(translate open) $cryptfile $(translate with_enc_kf)"
       if [[ $auto_try = 'yes' ]]; then
         cycle_crypt_keyf || (unset cycle_mode; unset passphrase && checkmount)
       else
         $cryptcmd_open_keyfile "$kf" keyfile_tmp && \
         ($cryptcmd_open --key-file=- "$cryptfile" "$mountp" < /dev/mapper/keyfile_tmp || \
-        (message "Trying plain mode" && \
+        (message "$(translate try_plain)" && \
         $cryptcmd_open_plain --key-file=- "$cryptfile" "$mountp" < /dev/mapper/keyfile_tmp)
         cryptsetup close keyfile_tmp) && \
         checkmount
@@ -447,23 +464,23 @@ new_cont () {
   case $mode in
 
     simpleblock)
-      title "Encrypt block device $cryptfile"
+      title "$(translate simpleblock_txt) $cryptfile"
       encrypt_block
     ;;
 
     simplefile)
-      title "Encrypt file container $cryptfile"
+      title "$(translate simplefile_txt) $cryptfile"
       newfile
       encrypt_file
     ;;
 
     ekeyblock)
-      title "Encrypt block device $cryptfile with encrypted keyfile"
+      title "$(translate simpleblock_txt) $cryptfile $(translate with_enc_kf)"
       encrypt_block
     ;;
 
     ekeyfile)
-      title "Encrypt file container $cryptfile with encrypted keyfile"
+      title "$(translate simplefile_txt) $cryptfile $(translate with_enc_kf)"
       newfile
       encrypt_file
     ;;
@@ -472,9 +489,9 @@ new_cont () {
 
 case $1 in
   o|open)
-    [[ -d "$mountpath" ]] || die "Mountpoint path $mountpath does not exist, check config"
+    [[ -d "$mountpath" ]] || die "$(translate mnt_path1) $mountpath $(translate mnt_path2)"
     lsblk -o NAME,SIZE,MOUNTPOINT
-    title "Decrypt something"
+    title "$(translate dec_smth)"
     checkcryptfile
     checkkeyfile
     checkmountdir
@@ -483,7 +500,7 @@ case $1 in
 
   n|new)
     lsblk -o NAME,SIZE,MOUNTPOINT
-    title "Encrypt something"
+    title "$(translate enc_smth)"
     create=1
     checkcryptfile
     checkkeyfile
@@ -491,7 +508,7 @@ case $1 in
   ;;
 
   f|file)
-    title "Generating new file with random data"
+    title "$(translate gen_newf_txt)"
     create=1
     checkcryptfile
     echo -en "\n"
@@ -499,7 +516,7 @@ case $1 in
   ;;
 
   k|key)
-    title "Generating new keyfile with /dev/random"
+    title "$(translate gen_newkf_txt)"
     create=1
     checkcryptfile
     echo -en "\n"
@@ -507,13 +524,13 @@ case $1 in
   ;;
 
   c|close)
-    message "Unmount and close container"
+    message "$(translate umount_close)"
     umountcont
   ;;
 
   w|wipe)
     lsblk -o NAME,SIZE,MOUNTPOINT
-    warning "Wipe device"
+    warning "$(translate wipe_device)"
     checkcryptfile
     wipedevice
   ;;
