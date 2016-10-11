@@ -26,7 +26,7 @@ You can encrypt the whole system partition with this script in the stage of inst
 Encrypted keyfiles are not supported by cryptsetup, and my implementation of it could be harmful to your data, could kill your cat, destroy your house and start 3rd World War.
 
 # Dependencies
-`bash`  
+`bash` >= v.4  
 `cryptsetup`  
 optional `ddrescue` and `fallocate`  
 
