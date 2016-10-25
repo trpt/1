@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # cryptsetup wrapper by Trepet
-# v. 2.01
+# v. 2.02
 # © GPLv3
 
 
@@ -67,7 +67,7 @@ die() {
     cryptsetup close keyfile_tmp 2> /dev/null
     cryptsetup close tobewiped 2> /dev/null
     cryptsetup close "$mountp" 2> /dev/null
-    [[ $remove_mp = 'yes' && $(find "$mountpath$mountp" -maxdepth 0 -type d -empty 2>/dev/null) ]] \
+    [[ $remove_mp = 'yes' && -n $mountp && $(find "$mountpath$mountp" -maxdepth 0 -type d -empty 2>/dev/null) ]] \
     && rmdir "$mountpath$mountp" 2> /dev/null
   fi
   exit 1
@@ -129,7 +129,7 @@ checkmount () {
     message "$(translate mount_success)"
   else
     [[ $cycle_mode != 'yes' ]] && warning "$(translate mount_failed)"
-    [[ $remove_mp = 'yes' && $cycle_mode != 'yes' ]] && rmdir "$mountpath$mountp"
+    [[ $remove_mp = 'yes' && $cycle_mode != 'yes' && -n $mountp ]] && rmdir "$mountpath$mountp"
     cryptsetup close "/dev/mapper/$mountp" 2> /dev/null
     return 1
   fi
