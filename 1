@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # cryptsetup wrapper by Trepet
-# v. 2.02
+# v. 2.05
 # © GPLv3
 
 
@@ -368,7 +368,7 @@ umountcont () {
     force='yes'
   fi
 
-  mounted=$(grep "^/dev/mapper/$mountp" /proc/mounts | awk '{print $2}')
+  mounted=$(grep "^/dev/mapper/$mountp " /proc/mounts | awk '{print $2}')
 
   if [[ -d "$mounted" ]]; then
     sync && \
@@ -433,7 +433,7 @@ open_cont () {
 
     simpleblock|simplefile)
       title "$(translate open) $cryptfile"
-      $cryptcmd_open "$cryptfile" "$mountp" || \
+      $cryptcmd_open "$cryptfile" "$mountp" && checkmount || \
       (message "$(translate try_plain)" && \
       if [[ $auto_try = 'yes' ]]; then
         cycle_crypt || (unset cycle_mode; unset passphrase && checkmount)
