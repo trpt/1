@@ -1,11 +1,13 @@
 #!/bin/bash
 
 # cryptsetup wrapper by Trepet
-# v. 2.05
+# v. 2.1
 # © GPLv3
 
 
 ## General options
+## You can override these with environment variables with 'csw_' prefix, like 'csw_mountpath', 'csw_colors' etc.
+
 # Path to mountpoints
 mountpath='/media/'
 # Ignore these when listing containers to close
@@ -44,6 +46,11 @@ cryptcmd_encrypt_luks='cryptsetup luksFormat --iter-time=5000 --hash=sha512 --ci
 add_rnd='yes'
 
 ######################################
+
+# Check environment for custom options
+[[ -n $csw_mountpath ]] && mountpath="$csw_mountpath" ; [[ -n $csw_listing_ignore ]] && listing_ignore="$csw_listing_ignore" ; [[ -n $csw_dev_search ]] && dev_search="$csw_dev_search" ; [[ -n $csw_colors ]] && colors="$csw_colors" ; [[ -n $csw_remove_mp ]] && remove_mp="$csw_remove_mp" ; [[ -n $csw_error_repeat ]] && error_repeat="$csw_error_repeat" ; [[ -n $csw_auto_try ]] && auto_try="$csw_auto_try" ; [[ -n $csw_cryptcmd_open ]] && cryptcmd_open="$csw_cryptcmd_open" ; [[ -n $csw_cryptcmd_open_plain ]] && cryptcmd_open_plain="$csw_cryptcmd_open_plain" ; [[ -n $csw_cryptcmd_open_keyfile ]] && cryptcmd_cryptcmd_open_keyfile="$csw_cryptcmd_open_keyfile" ; [[ -n $csw_encrypt_plain ]] && cryptcmd_encrypt_plain="$csw_encrypt_plain" ; [[ -n $csw_format_fs ]] && format_fs="$csw_format_fs" ; [[ -n $csw_cryptcmd_encrypt_plain ]] && cryptcmd_encrypt_plain="$csw_cryptcmd_encrypt_plain" ; [[ -n $csw_cryptcmd_encrypt_luks ]] && cryptcmd_encrypt_luks="$csw_cryptcmd_encrypt_luks" ; [[ -n $csw_add_rnd ]] && add_rnd="$csw_add_rnd"
+
+# Internationalizaion
 translate() {
   [[ -z $lang ]] && lang=${LANG:0:2}
 
