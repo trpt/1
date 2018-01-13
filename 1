@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # cryptsetup wrapper by Trepet
-# v. 2.1
+# v. 2.1.1
 # © GPLv3
 
 
@@ -175,13 +175,13 @@ checkcryptfile () {
     checkcryptfile
   fi
 
-  if [[ -e "$cryptfile" && $create -eq 1 ]]; then
+  if [[ -e "$cryptfile" && $create -eq 1 && ! -b "$cryptfile" ]]; then
     warning "$(translate file_exists)"
     checkcryptfile
     return
   fi
 
-  if [[ -f "$cryptfile" || $create -eq 1 ]] && [[ !($dev_search = 'yes' && -b "/dev/$cryptfile") ]]; then
+  if [[ -f "$cryptfile" || $create -eq 1 ]] && [[ !($dev_search = 'yes' && -b "/dev/$cryptfile") ]] && [[ ! -b "$cryptfile" ]]; then
     mode='file'
   else
     if [[ $dev_search = 'yes' ]] && [[ -b "/dev/$cryptfile" ]]; then
